@@ -21,7 +21,8 @@
 void initialize_parameters(bool& manually, int& size, double& wingspan,
                            double& max_speed, double& min_distance,
                            double& separation_factor, double& cohesion_factor,
-                           double& allineation_factor, vec3& screen,
+                           double& allineation_factor, double& fear_factor,
+                           double& sight_distance, vec3& screen,
                            bool& toroidalbool, bool& windbool, vec3& wind,
                            double& attack_speed, double& attack_range)
 {
@@ -56,6 +57,10 @@ void initialize_parameters(bool& manually, int& size, double& wingspan,
     std::cin >> cohesion_factor;
     std::cout << "Enter allineation factor (0 ~ 100): ";
     std::cin >> allineation_factor;
+    std::cout << "Enter fear factor (0 ~ 100): ";
+    std::cin >> fear_factor;
+    std::cout << "Enter sight distance: ";
+    std::cin >> sight_distance;
     std::cout << "Enter width: ";
     std::cin >> screen[0];
     std::cout << "Enter length: ";
@@ -201,7 +206,8 @@ int main()
 
   int size        = 100;
   double wingspan = 2, max_speed = 1, min_distance = 30, sight_distance = 150;
-  double separation_factor = 50, cohesion_factor = 50, allineation_factor = 50;
+  double separation_factor = 50, cohesion_factor = 50, allineation_factor = 50,
+         fear_factor = 50;
   vec3 screen(600, 300, 300), wind(0, 0, 0);
   bool toroidalbool = false, windbool = false, manually = false, attack = true;
 
@@ -213,15 +219,15 @@ int main()
 
   initialize_parameters(manually, size, wingspan, max_speed, min_distance,
                         separation_factor, cohesion_factor, allineation_factor,
-                        screen, toroidalbool, windbool, wind, attack_speed,
-                        attack_range);
+                        fear_factor, sight_distance, screen, toroidalbool,
+                        windbool, wind, attack_speed, attack_range);
 
   predator batman(vec3(0, 0, 0), vec3(0, 0, 0), attack_range, attack_speed,
                   screen, toroidalbool, wind);
 
   swarm boids(size, wingspan, max_speed, min_distance, sight_distance,
-              separation_factor, cohesion_factor, allineation_factor, batman,
-              screen, toroidalbool, wind);
+              separation_factor, cohesion_factor, allineation_factor,
+              fear_factor, batman, screen, toroidalbool, wind);
 
   int t = 0;
   while (windowXY.isOpen() && windowXZ.isOpen() && windowYZ.isOpen()) {

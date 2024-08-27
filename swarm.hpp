@@ -27,6 +27,7 @@ class swarm
   double allineation_factor; // si avvicina alla velocità generale di un
                              // ottavo della differenza tra la velocità
                              // percepita e la propria * allineation_factor
+  double fear_factor;        // quanto velocemente scappano i boids
   bool predator;
   boid batman;
   vec3 screen;
@@ -248,7 +249,6 @@ class swarm
 
   vec3 avoid_predator(boid& b) // evita il predatore
   {
-    vec3 current_velocity = b.get_velocity();
     vec3 evade_vector(0, 0, 0);
     vec3 distance_to_predator(0, 0, 0);
     if (!toroidal) {
@@ -265,11 +265,7 @@ class swarm
       double bounce_factor = (sight_distance - distance_norm) / sight_distance;
       evade_vector         = flee_direction * max_speed * bounce_factor;
     }
-    vec3 new_velocity = current_velocity + evade_vector;
-    if (new_velocity.norm() > max_speed) {
-      new_velocity = new_velocity.normalize() * max_speed;
-    }
-    return new_velocity;
+    return evade_vector * fear_factor / 100;
   }
 
   vec3 avoid_obstacle(boid& b,
@@ -310,8 +306,8 @@ class swarm
         double max_speed_    = 50, // la maxspeed compare 2 volte
         double min_distance_ = 10, double sight_distance_ = 300,
         double separation_factor_ = 1.5, double cohesion_factor_ = 0.5,
-        double allineation_factor_ = 1,
-        boid batman_               = boid(vec3(0, 0, 0), vec3(0, 0, 0)),
+        double allineation_factor_ = 1, double fear_factor_ = 0.5,
+        boid batman_ = boid(vec3(0, 0, 0), vec3(0, 0, 0)),
         vec3 screen_ = vec3(500, 500, 500), bool toroidal_ = 0,
         vec3 wind_ = vec3(0, 0, 0))
       : size(size_)
@@ -322,35 +318,41 @@ class swarm
       , separation_factor(separation_factor_)
       , cohesion_factor(cohesion_factor_)
       , allineation_factor(allineation_factor_)
+      , fear_factor(fear_factor_)
       , batman(batman_)
       , screen(screen_) // Imposta larghezza e altezza dello schermo
       , toroidal(toroidal_)
       , wind(wind_)
   {
     if (size < 1) {
-      throw std::invalid_argument("swarm size must be greater than 0");
+      throw std::invalid_argument("Swarm size must be greater than 0");
     }
     if (wingspan <= 0) {
       throw std::invalid_argument("wingspan must be greater than 0");
     }
     if (max_speed <= 0) {
-      throw std::invalid_argument("max_speed must be greater than 0");
+      throw std::invalid_argument("Maximum speed must be greater than 0");
     }
     if (min_distance <= 0) {
-      throw std::invalid_argument("min_distance must be greater than 0");
+      throw std::invalid_argument("Minimum distance must be greater than 0");
     }
-    if (allineation_factor <= 0 || allineation_factor >= 100) {
+    if (allineation_factor <= 0 || allineation_factor > 100) {
       throw std::invalid_argument(
-          "allineation_factor must be greater than 0 and smaller than 100");
+          "Allineation_factor must be greater than 0 and smaller than 100");
     }
     if (cohesion_factor <= 0
         || cohesion_factor > 100) { // è l'unico per cui 100 va bene!!!!!!!!1
       throw std::invalid_argument(
-          "cohesion_factor must be greater than 0 and smaller then 100");
+          "Cohesion factor must be greater than 0 and smaller then 100");
     }
     if (separation_factor <= 0 || separation_factor > 100) {
       throw std::invalid_argument(
-          "separation_factor must be greater than 0 and smaller than 100");
+          "Ceparation factor must be greater than 0 and smaller than 100");
+    }
+
+    if (fear_factor <= 0 || separation_factor > 100) {
+      throw std::invalid_argument(
+          "Fear factor must be greater than 0 and smaller than 100");
     }
 
     for (int i = 0; i < size; i++) {
@@ -374,9 +376,9 @@ class swarm
     // mass_center = calculate_center_of_mass();
 
     for (int i = 0; i < size; i++) {
-      v1      = rule1(boids[i]);
-      v2      = rule2(boids[i]);
-      v3      = rule3(boids[i]);
+      v1 = rule1(boids[i]);
+      v2 = rule2(boids[i]);
+      v3 = rule3(boids[i]);
 
       boids[i].update_boid(v1 + v2 + v3, max_speed);
       boids[i].update_boid(avoid_predator(boids[i]), max_speed);
