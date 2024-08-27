@@ -86,33 +86,44 @@ class swarm
   vec3 rule1(boid& b) // tutti i boid tendono al centro di massa dello stormo,
   {
     vec3 perceived_center(0, 0, 0);
+    int count{};
     if (!toroidal) { // bordo
       for (int i = 0; i < size; i++) {
         if (boids[i] != b) {
-          perceived_center += boids[i].get_position();
+          if (distance(boids[i].get_position(), b.get_position())
+              <= sight_distance) { // non considero i boid troppo lontani
+            perceived_center += boids[i].get_position();
+            ++count;
+          }
         }
       }
-      perceived_center /= size - 1;
+      if (count == 0) {
+        return vec3(0, 0, 0);
+      }
+      perceived_center /= count;
       return ((perceived_center - b.get_position()) / 100000) * cohesion_factor;
     } else { // toroidale
       for (int i = 0; i < 3; ++i) {
-        int k{};
+        count = 0;
         for (int j = 0; j < size; ++j) {
-          if (boids[j] != b) {
+          if (boids[j] != b
+              && toroidal_distance(boids[j].get_position(), b.get_position(),
+                                   screen)
+                     <= sight_distance) {
             if (std::abs(boids[j].get_position()[i] - perceived_center[i])
                 < screen[i] / 2) {
               perceived_center[i] =
-                  (k * perceived_center[i] + boids[j].get_position()[i])
-                  / (k + 1);
+                  (count * perceived_center[i] + boids[j].get_position()[i])
+                  / (count + 1);
             } else {
-              perceived_center[i] = (k * perceived_center[i]
+              perceived_center[i] = (count * perceived_center[i]
                                      + boids[j].get_position()[i] + screen[i])
-                                  / (k + 1);
+                                  / (count + 1);
               if (perceived_center[i] > screen[i]) {
                 perceived_center[i] -= screen[i];
               }
             }
-            ++k;
+            ++count;
           }
         }
       }
@@ -130,17 +141,19 @@ class swarm
     vec3 c(0, 0, 0);
     if (!toroidal) { // bordo
       for (int i = 0; i < size; i++) {
-        if (boids[i] != b) {
+        if (boids[i] != b
+            && distance(boids[i].get_position(), b.get_position()) != 0) {
           if (distance(boids[i].get_position(), b.get_position())
               <= min_distance) {
             c -= (boids[i].get_position() - b.get_position()).normalize()
-               / ((boids[i].get_position() - b.get_position()).norm() + 0.0001);
+               / ((boids[i].get_position() - b.get_position()).norm());
           }
         }
       }
     } else { // toroidale
       for (int i = 0; i < size; i++) {
-        if (boids[i] != b) {
+        if (boids[i] != b
+            && distance(boids[i].get_position(), b.get_position()) != 0) {
           if (toroidal_distance(boids[i].get_position(), b.get_position(),
                                 screen)
               <= min_distance) {
@@ -149,8 +162,7 @@ class swarm
                      .normalize()
                / (toroidal_vec_dist(boids[i].get_position(), b.get_position(),
                                     screen)
-                      .norm()
-                  + 0.0001);
+                      .norm());
           }
         }
       }
@@ -161,12 +173,32 @@ class swarm
   vec3 rule3(boid& b) // tutti i boid tendono a muoversi nella stessa direzione
   {
     vec3 pv(0, 0, 0);
-    for (int i = 0; i < size; i++) {
-      if (boids[i] != b) {
-        pv += boids[i].get_velocity();
+    int count = 0;
+    if (!toroidal) {
+      for (int i = 0; i < size; i++) {
+        if (boids[i] != b
+            && distance(boids[i].get_position(), b.get_position())
+                   <= sight_distance) {
+          pv += boids[i].get_velocity();
+          ++count;
+        }
       }
     }
-    pv /= size - 1;
+    if (toroidal) {
+      for (int i = 0; i < size; i++) {
+        if (boids[i] != b
+            && toroidal_distance(boids[i].get_position(), b.get_position(),
+                                 screen)
+                   <= sight_distance) {
+          pv += boids[i].get_velocity();
+          ++count;
+        }
+      }
+    }
+    if (count == 0) {
+      return vec3(0, 0, 0);
+    }
+    pv /= count;
     return (pv - b.get_velocity()) / 1000 * allineation_factor;
   }
 
@@ -176,9 +208,9 @@ class swarm
     vec3 newpos = b.get_position();
     for (int i = 0; i < 3; i++) {
       if (b.get_position()[i] < 0 && b.get_velocity()[i] < 0) {
-        bounce[i] *= -1;
+        bounce[i] *= -0.9;
       } else if (b.get_position()[i] > screen[i] && b.get_velocity()[i] > 0) {
-        bounce[i] *= -1;
+        bounce[i] *= -0.9;
       }
       if (b.get_position()[i] < 0) {
         newpos[i] = 0;
@@ -229,15 +261,48 @@ class swarm
     if (distance_norm == 0) {
       evade_vector = b.get_velocity() * max_speed;
     } else if (distance_norm <= sight_distance) {
-      vec3 flee_direction = distance_to_predator.normalize();
+      vec3 flee_direction  = distance_to_predator.normalize();
       double bounce_factor = (sight_distance - distance_norm) / sight_distance;
-      evade_vector        = flee_direction * max_speed * bounce_factor;
+      evade_vector         = flee_direction * max_speed * bounce_factor;
     }
     vec3 new_velocity = current_velocity + evade_vector;
     if (new_velocity.norm() > max_speed) {
       new_velocity = new_velocity.normalize() * max_speed;
     }
     return new_velocity;
+  }
+
+  vec3 avoid_obstacle(boid& b,
+                      boid& batman) // evita un ostacolo mobile circolare
+  {
+    if (distance(b.get_position(), batman.get_position()) == 0) {
+      return b.get_velocity().normalize() * max_speed;
+    } else {
+      vec3 current_velocity =
+          b.get_velocity(); // Ottieni la velocità corrente del boid
+      vec3 distance_to_predator = b.get_position() - batman.get_position();
+      if (toroidal) {
+        distance_to_predator =
+            toroidal_vec_dist(b.get_position(), batman.get_position(), screen);
+      }
+      double distance_norm = distance_to_predator.norm();
+
+      // Se il boid è entro il raggio del predatore (zona da evitare)
+      if (distance_norm <= sight_distance) {
+        // Calcola la direzione opposta per allontanarsi dal predatore
+        vec3 flee_direction = distance_to_predator.normalize();
+
+        // Imposta la velocità del boid verso la direzione opposta al predatore
+        vec3 new_velocity = flee_direction * max_speed;
+
+        return new_velocity; // Restituisci la nuova velocità, orientata lontano
+                             // dal predatore
+      }
+
+      // Se il boid non è in prossimità del predatore, mantiene la velocità
+      // corrente
+      return current_velocity;
+    }
   }
 
  public:
@@ -302,19 +367,20 @@ class swarm
   }
 
   // Metodo per aggiornare la posizione di tutti i boid nello stormo
-  void update_swarm()
+  void update_swarm(boid& batman_)
   {
-    vec3 v1, v2, v3, v_evade;
-    vec3 new_pos;
+    batman = batman_;
+    vec3 v1, v2, v3, v_evade, v_avoid;
     // mass_center = calculate_center_of_mass();
 
     for (int i = 0; i < size; i++) {
       v1      = rule1(boids[i]);
       v2      = rule2(boids[i]);
       v3      = rule3(boids[i]);
-      v_evade = avoid_predator(boids[i]);
 
-      boids[i].update_boid(v1 + v2 + v3 + v_evade, max_speed);
+      boids[i].update_boid(v1 + v2 + v3, max_speed);
+      boids[i].update_boid(avoid_predator(boids[i]), max_speed);
+      // boids[i].set_velocity(v_evade);
       boids[i].update_boid(wind, wind.norm() + max_speed);
 
       rule4(boids[i]);
@@ -369,6 +435,11 @@ class swarm
   std::vector<boid> get_boids()
   {
     return boids;
+  }
+
+  bool is_toroidal()
+  {
+    return toroidal;
   }
 };
 

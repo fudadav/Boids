@@ -14,6 +14,7 @@ class predator : public boid
   double attack_speed;
   vec3 screen;
   bool toroidal;
+  vec3 wind;
 
   void bounce() // rimbalzo
   {
@@ -89,7 +90,8 @@ class predator : public boid
         set_velocity(direction_to_prey * get_attack_speed());
       } else {
         vec3 direction_to_prey =
-            toroidal_vec_dist(prey->get_position(), get_position(), screen).normalize();
+            toroidal_vec_dist(prey->get_position(), get_position(), screen)
+                .normalize();
         set_velocity(direction_to_prey * get_attack_speed());
       }
     }
@@ -102,16 +104,19 @@ class predator : public boid
       , attack_speed(0)
       , screen(vec3(500, 500, 500))
       , toroidal(0)
+      , wind(vec3(0, 0, 0))
   {}
 
   predator(vec3 position = vec3(0, 0, 0), vec3 velocity = vec3(0, 0, 0),
            double attack_range_ = 50, double attack_speed_ = 70,
-           vec3 screen_ = vec3(500, 500, 500), bool toroidal_ = 0)
+           vec3 screen_ = vec3(500, 500, 500), bool toroidal_ = 0,
+           vec3 wind_ = vec3(0, 0, 0))
       : boid(position, velocity)
       , attack_range(attack_range_)
       , attack_speed(attack_speed_)
       , screen(screen_)
       , toroidal(toroidal_)
+      , wind(wind_)
   {
     if (attack_range <= 0) {
       throw std::invalid_argument("attack_range must be greater than 0");
@@ -127,6 +132,7 @@ class predator : public boid
     // Aggiorna la posizione e il comportamento del predatore
     attack(swarm);
     update_boid(vec3(), get_attack_speed());
+    update_boid(wind, wind.norm() + attack_speed);
     rule4();
   }
 

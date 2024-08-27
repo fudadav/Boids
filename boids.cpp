@@ -5,7 +5,6 @@
 #include "save.hpp"
 #include "swarm.hpp"
 #include "vec3.hpp"
-// #include "predator.hpp"
 
 #include <SFML/Graphics.hpp>
 #include <SFML/Window.hpp>
@@ -22,12 +21,23 @@
 void initialize_parameters(bool& manually, int& size, double& wingspan,
                            double& max_speed, double& min_distance,
                            double& separation_factor, double& cohesion_factor,
-                           double& allineation_factor, vec3& screen, bool& toroidalbool,
-                           bool& windbool, vec3& wind, double& attack_speed,
-                           double& attack_range)
+                           double& allineation_factor, vec3& screen,
+                           bool& toroidalbool, bool& windbool, vec3& wind,
+                           double& attack_speed, double& attack_range)
 {
   std::string input;
-  std::cout << "Insert parameters manually? (y/N): ";
+  double windspeed{0.5};
+
+  std::cout << "Enable wind? [y/N]: ";
+  std::cin >> input;
+  windbool = (input == "y" || input == "Y" || input == "yes" || input == "Yes");
+
+  std::cout << "Enable toroidal space? (Recommended with wind enabled) [y/N]: ";
+  std::cin >> input;
+  toroidalbool =
+      (input == "y" || input == "Y" || input == "yes" || input == "Yes");
+
+  std::cout << "Insert parameters manually? [y/N]: ";
   std::cin >> input;
   manually = (input == "y" || input == "Y" || input == "yes" || input == "Yes");
 
@@ -56,21 +66,13 @@ void initialize_parameters(bool& manually, int& size, double& wingspan,
     std::cin >> attack_speed;
     std::cout << "Enter predator attack range: ";
     std::cin >> attack_range;
+    if (windbool) {
+      std::cout << "Enter wind speed: ";
+      std::cin >> windspeed;
+    }
   }
 
-  std::cout << "Use toroidal space? (y/N): ";
-  std::cin >> input;
-  toroidalbool = (input == "y" || input == "Y" || input == "yes" || input == "Yes");
-
-  std::cout << "Use wind? (y/N): ";
-  std::cin >> input;
-  windbool = (input == "y" || input == "Y" || input == "yes" || input == "Yes");
-
   if (windbool) {
-    double windspeed;
-    std::cout << "Enter wind speed: ";
-    std::cin >> windspeed;
-
     std::srand(static_cast<unsigned>(std::time(0)));
     wind = vec3((std::rand() % 100) - 50, (std::rand() % 100) - 50,
                 (std::rand() % 100) - 50)
@@ -167,6 +169,29 @@ void draw_boids_on_plane(swarm& mySwarm, predator& myPredator,
   predatorShape.setPosition(predatorPosition);
   window.draw(predatorShape);
 }
+
+void print_statistics(swarm& boids, int t)
+{
+  std::vector<double> distances, velocities;
+  for (int i = 0; i < boids.get_size(); ++i) {
+    velocities.push_back(boids[i].get_velocity().norm());
+    for (int j = i + 1; j < boids.get_size(); ++j) {
+      distances.push_back(
+          boids.is_toroidal()
+              ? toroidal_distance(boids[i].get_position(),
+                                  boids[j].get_position(), boids.get_screen())
+              : (boids[i].get_position() - boids[j].get_position()).norm());
+    }
+  }
+  double mean_dist = mean(distances), mean_vel = mean(velocities);
+  std::cout << "Tempo " << t << "Distanza Media = " << mean_dist
+            << ", Deviazione Distanza = " << dev_std(distances, mean_dist)
+            << ", VelocitC  Media = " << mean_vel
+            << ", Deviazione VelocitC  = " << dev_std(velocities, mean_vel)
+            << std::endl;
+
+  // save_positions_to_file(boids, "boids_positions.txt");
+}
 // FONSI CHE CAZZO FAI NON VA QUI aspetta, è una prova fai vado a pranzo buon
 // appetito
 
@@ -175,12 +200,12 @@ int main()
   draw_windows();
 
   int size        = 100;
-  double wingspan = 2, max_speed = 1, min_distance = 30, sight_distance = 300;
+  double wingspan = 2, max_speed = 1, min_distance = 30, sight_distance = 150;
   double separation_factor = 50, cohesion_factor = 50, allineation_factor = 50;
   vec3 screen(600, 300, 300), wind(0, 0, 0);
   bool toroidalbool = false, windbool = false, manually = false, attack = true;
 
-  double attack_range = 500, attack_speed = 0.9;
+  double attack_range = 500, attack_speed = 1;
   if (!attack) {
     attack_range = 0;
     attack_speed = 0;
@@ -192,7 +217,7 @@ int main()
                         attack_range);
 
   predator batman(vec3(0, 0, 0), vec3(0, 0, 0), attack_range, attack_speed,
-                  screen, toroidalbool);
+                  screen, toroidalbool, wind);
 
   swarm boids(size, wingspan, max_speed, min_distance, sight_distance,
               separation_factor, cohesion_factor, allineation_factor, batman,
@@ -226,31 +251,11 @@ int main()
     draw_boids_on_plane(boids, batman, windowYZ, 2);
     windowYZ.display();
 
-    boids.update_swarm();
     batman.update_predator(boids);
+    boids.update_swarm(batman);
 
     if (t % 100 == 0) {
-      std::vector<double> distances, velocities;
-      for (int i = 0; i < size; ++i) {
-        velocities.push_back(boids[i].get_velocity().norm());
-        for (int j = i + 1; j < size; ++j) {
-          distances.push_back(
-              toroidalbool
-                  ? toroidal_distance(boids[i].get_position(),
-                                      boids[j].get_position(),
-                                      boids.get_screen())
-                  : (boids[i].get_position() - boids[j].get_position()).norm());
-        }
-      }
-
-      double mean_dist = mean(distances), mean_vel = mean(velocities);
-      std::cout << "Tempo " << t << ": Distanza Media = " << mean_dist
-                << ", Deviazione Distanza = " << dev_std(distances, mean_dist)
-                << ", Velocità Media = " << mean_vel
-                << ", Deviazione Velocità = " << dev_std(velocities, mean_vel)
-                << std::endl;
-
-      save_positions_to_file(boids, "boids_positions.txt");
+      print_statistics(boids, t);
     }
     ++t;
   }
