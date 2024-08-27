@@ -3,7 +3,6 @@
 
 #include "boid.hpp"
 #include "functions.hpp"
-#include "predator.hpp"
 #include "vec3.hpp"
 
 #include <cstdlib>
@@ -20,6 +19,7 @@ class swarm
   int wingspan;
   double max_speed;
   double min_distance;
+  double sight_distance;
   double separation_factor;  // si allontana della distanza tra i boid *
                              // separation_factor
   double cohesion_factor;    // si avvicina di quella percentuale da 1 a 100 al
@@ -27,7 +27,8 @@ class swarm
   double allineation_factor; // si avvicina alla velocità generale di un
                              // ottavo della differenza tra la velocità
                              // percepita e la propria * allineation_factor
-  predator batman;
+  bool predator;
+  boid batman;
   vec3 screen;
   bool toroidal;
   vec3 wind;
@@ -51,8 +52,8 @@ class swarm
       double vy = (((std::rand() % 100) - 50) / 50) * max_speed;
       double vz = (((std::rand() % 100) - 50) / 50) * max_speed;
 
-      b.set_velocity(vec3(vx, vy, vz)
-                     / 10); // Imposta la velocità iniziale del boid
+      b.set_velocity(vec3(vx, vy, vz).normalize()
+                     * max_speed); // Imposta la velocità iniziale del boid
     }
   }
 
@@ -172,14 +173,21 @@ class swarm
   void bounce(boid& b) // rimbalzo
   {
     vec3 bounce = b.get_velocity();
+    vec3 newpos = b.get_position();
     for (int i = 0; i < 3; i++) {
       if (b.get_position()[i] < 0 && b.get_velocity()[i] < 0) {
         bounce[i] *= -1;
       } else if (b.get_position()[i] > screen[i] && b.get_velocity()[i] > 0) {
         bounce[i] *= -1;
       }
+      if (b.get_position()[i] < 0) {
+        newpos[i] = 0;
+      } else if (b.get_position()[i] > screen[i]) {
+        newpos[i] = screen[i];
+      }
     }
     b.set_velocity(bounce);
+    b.set_position(newpos);
   }
 
   void teleport(boid& b) // teletrasporto
@@ -197,61 +205,59 @@ class swarm
     b.set_position(new_position);
   }
 
+  void rule4(boid& b) // rimbalzo
+  {
+    if (toroidal) {
+      teleport(b);
+    } else {
+      bounce(b);
+    }
+  }
+
   vec3 avoid_predator(boid& b) // evita il predatore
   {
+    vec3 current_velocity = b.get_velocity();
     vec3 evade_vector(0, 0, 0);
-    vec3 distance_to_predator = b.get_position() - batman.get_position();
-    if (distance_to_predator.norm() == 0) {
+    vec3 distance_to_predator(0, 0, 0);
+    if (!toroidal) {
+      distance_to_predator = b.get_position() - batman.get_position();
+    } else {
+      distance_to_predator =
+          toroidal_vec_dist(b.get_position(), batman.get_position(), screen);
+    }
+    double distance_norm = distance_to_predator.norm();
+    if (distance_norm == 0) {
       evade_vector = b.get_velocity() * max_speed;
-    } else if (distance_to_predator.norm() <= batman.get_attack_range()) {
-      evade_vector = distance_to_predator.normalize() * separation_factor;
+    } else if (distance_norm <= sight_distance) {
+      vec3 flee_direction = distance_to_predator.normalize();
+      double bounce_factor = (sight_distance - distance_norm) / sight_distance;
+      evade_vector        = flee_direction * max_speed * bounce_factor;
     }
-    return evade_vector * separation_factor / (distance_to_predator.norm() + 0.0001);
-  }
-
-  boid* find_prey()
-  {
-    boid* nearest_prey      = nullptr;
-    double nearest_distance = screen.norm();
-
-    for (int i = 0; i < size; i++) {
-      double dist = distance(boids[i].get_position(), batman.get_position());
-      if (dist < nearest_distance && dist <= batman.get_attack_range()) {
-        nearest_distance = dist;
-        nearest_prey     = &boids[i];
-      }
+    vec3 new_velocity = current_velocity + evade_vector;
+    if (new_velocity.norm() > max_speed) {
+      new_velocity = new_velocity.normalize() * max_speed;
     }
-    return nearest_prey;
-  }
-
-  // Metodo specifico per l'attacco
-  void attack(predator& predator)
-  {
-    boid* prey = find_prey();
-    if (prey != nullptr) {
-      vec3 direction_to_prey =
-          (prey->get_position() - predator.get_position()).normalize();
-      predator.set_velocity(direction_to_prey * predator.get_attack_speed());
-    }
+    return new_velocity;
   }
 
  public:
   swarm(int size_, int wingspan_,
         double max_speed_    = 50, // la maxspeed compare 2 volte
-        double min_distance_ = 10, double separation_factor_ = 1.5,
-        double cohesion_factor_ = 0.5, double allineation_factor_ = 1,
-        predator batman = predator(vec3(0, 0, 0), vec3(0, 0, 0), 50, 70,
-                                   vec3(500, 500, 500)),
+        double min_distance_ = 10, double sight_distance_ = 300,
+        double separation_factor_ = 1.5, double cohesion_factor_ = 0.5,
+        double allineation_factor_ = 1,
+        boid batman_               = boid(vec3(0, 0, 0), vec3(0, 0, 0)),
         vec3 screen_ = vec3(500, 500, 500), bool toroidal_ = 0,
         vec3 wind_ = vec3(0, 0, 0))
       : size(size_)
       , wingspan(wingspan_)
       , max_speed(max_speed_)
       , min_distance(min_distance_)
+      , sight_distance(sight_distance_)
       , separation_factor(separation_factor_)
       , cohesion_factor(cohesion_factor_)
       , allineation_factor(allineation_factor_)
-      , batman(batman)
+      , batman(batman_)
       , screen(screen_) // Imposta larghezza e altezza dello schermo
       , toroidal(toroidal_)
       , wind(wind_)
@@ -295,23 +301,6 @@ class swarm
     return boids[i];
   }
 
-  void rule4(boid& b) // rimbalzo
-  {
-    if (toroidal) {
-      teleport(b);
-    } else {
-      bounce(b);
-    }
-  }
-
-  void update_predator()
-  {
-    // Aggiorna la posizione e il comportamento del predatore
-    attack(batman);
-    batman.update_boid(vec3(), batman.get_attack_speed());
-    rule4(batman);
-  }
-
   // Metodo per aggiornare la posizione di tutti i boid nello stormo
   void update_swarm()
   {
@@ -340,11 +329,6 @@ class swarm
   vec3 get_screen()
   {
     return screen;
-  }
-
-  void set_predator(const predator& new_predator)
-  {
-    batman = new_predator;
   }
 
   double get_max_speed()

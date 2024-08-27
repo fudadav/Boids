@@ -1,6 +1,7 @@
 
 #include "boid.hpp"
 #include "functions.hpp"
+#include "predator.hpp"
 #include "save.hpp"
 #include "swarm.hpp"
 #include "vec3.hpp"
@@ -21,7 +22,7 @@
 void initialize_parameters(bool& manually, int& size, double& wingspan,
                            double& max_speed, double& min_distance,
                            double& separation_factor, double& cohesion_factor,
-                           double& allineation_factor, vec3& screen, bool& toro,
+                           double& allineation_factor, vec3& screen, bool& toroidalbool,
                            bool& windbool, vec3& wind, double& attack_speed,
                            double& attack_range)
 {
@@ -59,7 +60,7 @@ void initialize_parameters(bool& manually, int& size, double& wingspan,
 
   std::cout << "Use toroidal space? (y/N): ";
   std::cin >> input;
-  toro = (input == "y" || input == "Y" || input == "yes" || input == "Yes");
+  toroidalbool = (input == "y" || input == "Y" || input == "yes" || input == "Yes");
 
   std::cout << "Use wind? (y/N): ";
   std::cin >> input;
@@ -78,6 +79,40 @@ void initialize_parameters(bool& manually, int& size, double& wingspan,
   }
 }
 
+sf::RenderWindow windowXY;
+sf::RenderWindow windowXZ;
+sf::RenderWindow windowYZ;
+
+void draw_windows()
+{
+  // Get the desktop resolution
+  sf::VideoMode desktopMode = sf::VideoMode::getDesktopMode();
+  unsigned int screenWidth  = desktopMode.width;
+  unsigned int screenHeight = desktopMode.height;
+
+  // Define padding and application bar height (adjust as needed)
+  int padding      = 12;
+  int appBarHeight = 35; // Assume the application bar is 35 pixels high
+
+  // Calculate the size for each window, slightly smaller than the quarter
+  // screen
+  unsigned int windowWidth  = (screenWidth / 2) - padding;
+  unsigned int windowHeight = (screenHeight / 2) - 2 * padding - appBarHeight;
+
+  // Create the windows with the calculated sizes
+  windowXY.create(sf::VideoMode(windowWidth, windowHeight), "XY Plane");
+  windowXZ.create(sf::VideoMode(windowWidth, windowHeight), "XZ Plane");
+  windowYZ.create(sf::VideoMode(windowWidth, windowHeight), "YZ Plane");
+
+  // Set the position of the windows, with offset to account for padding and app
+  // bar
+  windowXY.setPosition(
+      sf::Vector2i(0, windowHeight + 3 * padding)); // Bottom-left corner
+  windowXZ.setPosition(sf::Vector2i(0, 0));         // Upper-left corner
+  windowYZ.setPosition(
+      sf::Vector2i(windowWidth + padding, 0)); // Upper-right corner
+}
+
 void draw_boids_on_plane(swarm& mySwarm, predator& myPredator,
                          sf::RenderWindow& window, int plane)
 {
@@ -85,9 +120,8 @@ void draw_boids_on_plane(swarm& mySwarm, predator& myPredator,
       mySwarm.get_wingspan()); // Cerchio con raggio 5 per i boids
   boidShape.setFillColor(sf::Color::White);
 
-  sf::CircleShape predatorShape(
-      mySwarm.get_wingspan()
-      * (8 / 5)); // Cerchio con raggio 8 per il predatore
+  sf::CircleShape predatorShape(mySwarm.get_wingspan()
+                                * 2); // Cerchio con raggio 8 per il predatore
   predatorShape.setFillColor(sf::Color::Red);
 
   // Disegno dei boids
@@ -135,64 +169,34 @@ void draw_boids_on_plane(swarm& mySwarm, predator& myPredator,
 }
 // FONSI CHE CAZZO FAI NON VA QUI aspetta, è una prova fai vado a pranzo buon
 // appetito
-boid* find_prey(predator& batman, swarm& swarm)
-{
-  boid* nearest_prey      = nullptr;
-  double nearest_distance = swarm.get_screen().norm();
-
-  for (int i = 0; i < swarm.get_size(); i++) {
-    double dist =
-        distance(swarm.get_boids()[i].get_position(), batman.get_position());
-    if (dist < nearest_distance && dist <= batman.get_attack_range()) {
-      nearest_distance = dist;
-      nearest_prey     = &swarm.get_boids()[i];
-    }
-  }
-  return nearest_prey;
-}
-
-void attack(predator& predator, swarm& swarm)
-{
-  boid* prey = find_prey(predator, swarm);
-  if (prey != nullptr) {
-    vec3 direction_to_prey =
-        (prey->get_position() - predator.get_position()).normalize();
-    predator.set_velocity(direction_to_prey * predator.get_attack_speed());
-  }
-}
-
-void update_predator(predator& batman, swarm& swarm)
-{
-  // Aggiorna la posizione e il comportamento del predatore
-  attack(batman, swarm);
-  batman.update_boid(vec3(), batman.get_attack_speed());
-  swarm.rule4(batman);
-}
 
 int main()
 {
-  sf::RenderWindow windowXY(sf::VideoMode(800, 600), "XY Plane");
-  sf::RenderWindow windowXZ(sf::VideoMode(800, 600), "XZ Plane");
-  sf::RenderWindow windowYZ(sf::VideoMode(800, 600), "YZ Plane");
+  draw_windows();
 
   int size        = 100;
-  double wingspan = 2, max_speed = 1, min_distance = 30;
+  double wingspan = 2, max_speed = 1, min_distance = 30, sight_distance = 300;
   double separation_factor = 50, cohesion_factor = 50, allineation_factor = 50;
-  vec3 screen(500, 500, 500), wind(0, 0, 0);
-  bool toro = false, windbool = false, manually = false;
+  vec3 screen(600, 300, 300), wind(0, 0, 0);
+  bool toroidalbool = false, windbool = false, manually = false, attack = true;
 
   double attack_range = 500, attack_speed = 0.9;
+  if (!attack) {
+    attack_range = 0;
+    attack_speed = 0;
+  }
 
   initialize_parameters(manually, size, wingspan, max_speed, min_distance,
                         separation_factor, cohesion_factor, allineation_factor,
-                        screen, toro, windbool, wind, attack_range,
-                        attack_speed);
+                        screen, toroidalbool, windbool, wind, attack_speed,
+                        attack_range);
 
   predator batman(vec3(0, 0, 0), vec3(0, 0, 0), attack_range, attack_speed,
-                  screen);
+                  screen, toroidalbool);
 
-  swarm boids(size, wingspan, max_speed, min_distance, separation_factor,
-              cohesion_factor, allineation_factor, batman, screen, toro, wind);
+  swarm boids(size, wingspan, max_speed, min_distance, sight_distance,
+              separation_factor, cohesion_factor, allineation_factor, batman,
+              screen, toroidalbool, wind);
 
   int t = 0;
   while (windowXY.isOpen() && windowXZ.isOpen() && windowYZ.isOpen()) {
@@ -223,7 +227,7 @@ int main()
     windowYZ.display();
 
     boids.update_swarm();
-    update_predator(batman, boids);
+    batman.update_predator(boids);
 
     if (t % 100 == 0) {
       std::vector<double> distances, velocities;
@@ -231,7 +235,7 @@ int main()
         velocities.push_back(boids[i].get_velocity().norm());
         for (int j = i + 1; j < size; ++j) {
           distances.push_back(
-              toro
+              toroidalbool
                   ? toroidal_distance(boids[i].get_position(),
                                       boids[j].get_position(),
                                       boids.get_screen())
