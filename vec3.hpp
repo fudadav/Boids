@@ -2,107 +2,148 @@
 #define VEC3
 
 #include <cmath>
-#include <iostream>
+#include <stdexcept>
 
 class vec3
 { // vettore tridimensionale
- public:
+public:
   double x, y, z;
   vec3()
-      : x(0)
-      , y(0)
-      , z(0)
-  {} // costruttore vuoto
+      : x(0), y(0), z(0)
+  {
+  } // costruttore vuoto
   vec3(double x, double y, double z)
-      : x(x)
-      , y(y)
-      , z(z)
-  {} // costruttore
-  vec3 operator+(const vec3& other) const
-  { // somma
+      : x(x), y(y), z(z)
+  {
+  } // costruttore
+    
+  // uguaglianza
+  bool operator==(const vec3 &other) const
+  {
+    return x == other.x && y == other.y && z == other.z;
+  }
+
+  // disuguaglianza
+  bool operator!=(const vec3 &other) const
+  {
+    return !(*this == other);
+  }
+
+  // somma
+  vec3 operator+(const vec3 &other) const
+  {
     return vec3(x + other.x, y + other.y, z + other.z);
   }
-  vec3 operator+=(const vec3& other)
-  { // somma e assegna
+
+  // somma e assegna
+  vec3 operator+=(const vec3 &other)
+  {
     x += other.x;
     y += other.y;
     z += other.z;
     return *this;
   }
-  vec3 operator-(const vec3& other) const
-  { // differenza
+
+  // differenza
+  vec3 operator-(const vec3 &other) const
+  {
     return vec3(x - other.x, y - other.y, z - other.z);
   }
-  vec3 operator-=(const vec3& other)
-  { // differenza e assegna
+
+  // differenza e assegna
+  vec3 operator-=(const vec3 &other)
+  {
     x -= other.x;
     y -= other.y;
     z -= other.z;
     return *this;
   }
+
+  // prodotto per uno scalare
   vec3 operator*(double scalar) const
-  { // prodotto per uno scalare
+  {
     return vec3(x * scalar, y * scalar, z * scalar);
   }
+
+  // prodotto per uno scalare e assegna
   vec3 operator*=(double scalar)
-  { // prodotto per uno scalare e assegna
+  {
     x *= scalar;
     y *= scalar;
     z *= scalar;
     return *this;
   }
+
+  // divisione per uno scalare
   vec3 operator/(double scalar) const
-  { // divisione per uno scalare
+  {
     return vec3(x / scalar, y / scalar, z / scalar);
   }
+
+  // divisione per uno scalare e assegna
   vec3 operator/=(double scalar)
-  { // divisione per uno scalare e assegna
+  {
     x /= scalar;
     y /= scalar;
     z /= scalar;
     return *this;
   }
+
+  // norma
   double norm() const
-  { // norma
+  {
     return std::sqrt(x * x + y * y + z * z);
   }
-  vec3 normalize()
-  { // normalizza
+
+  // normalizza
+  vec3 normalize() const
+  {
     double n = norm();
-    if (n != 0) {
+    if (n != 0)
+    {
       return vec3(x / n, y / n, z / n);
-    } else {
+    }
+    else
+    {
       return *this;
     }
   }
-  double dot(const vec3& other)
-  { // prodotto scalare
+
+  // prodotto scalare
+  double dot(const vec3 &other) const
+  {
     return x * other.x + y * other.y + z * other.z;
   }
-  vec3 cross(const vec3& other)
-  { // prodotto vettoriale
+
+  // prodotto vettoriale
+  vec3 cross(const vec3 &other) const
+  {
     return vec3(y * other.z - z * other.y, z * other.x - x * other.z,
                 x * other.y - y * other.x);
   }
-  double& operator[](int i)
-  { // accesso agli elementi
-    if (i == 0) {
+
+  // accesso agli elementi
+  double &operator[](int i)
+  {
+    if (i == 0)
       return x;
-    } else if (i == 1) {
+    if (i == 1)
       return y;
-    } else if (i == 2) {
+    if (i == 2)
       return z;
-    } else {
-      throw std::out_of_range("index out of range");
-    }
+    throw std::out_of_range("index out of range");
   }
 
-  // OPERATORE AGGIUNTO CASUALMENTE DA MIA MAMMA PER STAMPARE NON SO COSA FA
-  //  Overload l'operatore << per la stampa con std::cout
-  friend std::ostream& operator<<(std::ostream& os, const vec3& v)
+  // accesso agli elementi costante
+  const double &operator[](int i) const
   {
-    os << "(" << v.x << ", " << v.y << ", " << v.z << ")";
-    return os;
+    if (i == 0)
+      return x;
+    if (i == 1)
+      return y;
+    if (i == 2)
+      return z;
+    throw std::out_of_range("index out of range");
   }
 };
 

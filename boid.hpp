@@ -18,55 +18,72 @@ class boid
       , velocity(velocity_)
   {}
 
+  // restituisce la posizione del boid
   vec3 get_position() const
-  { // restituisce la posizione del boid
+  {
     return position;
   }
+
+  // restituisce la velocità del boid
   vec3 get_velocity() const
-  { // restituisce la velocità del boid
+  {
     return velocity;
   }
+
+  // imposta la posizione del boid
   void set_position(const vec3& new_position)
-  { // imposta la posizione del boid
+  {
     position = new_position;
   }
+
+  // imposta la velocità del boid
   void set_velocity(const vec3& new_velocity)
-  { // imposta la velocità del boid
+  {
     velocity = new_velocity;
   }
+
+  void update_boid_velocity(vec3 delta_v, double max_speed)
+  {
+    velocity += delta_v;
+
+    // Limita la velocità massima
+    if (velocity.norm() > max_speed) {
+      velocity = velocity.normalize() * max_speed;
+    }
+  }
+
+  // aggiorna la posizione del boid
   void update_boid(vec3 delta_v, double max_speed)
-  { // aggiorna la posizione del boid
-    velocity += delta_v * 0.1;
+  {
+    velocity += delta_v;
 
     // Limita la velocità massima
     if (velocity.norm() > max_speed) {
       velocity = velocity.normalize() * max_speed;
     }
 
-    position += velocity;
+    position += velocity * 3;
   }
 
   // Copy constructor
   boid(const boid& other)
       : position(other.position)
       , velocity(other.velocity)
+  {}
+
+  // uguaglianza
+  bool operator==(const boid& other) const
   {
-    // Copy any other members as needed
+    return position == other.position && velocity == other.velocity;
   }
 
-  bool operator==(const boid& other)
-  { // uguaglianza
-    return position.x == other.position.x && position.y == other.position.y
-        && position.z == other.position.z && velocity.x == other.velocity.x
-        && velocity.y == other.velocity.y && velocity.z == other.velocity.z;
-  }
-  bool operator!=(const boid& other)
-  { // disuguaglianza
-    return position.x != other.position.x || position.y != other.position.y
-        || position.z != other.position.z || velocity.x != other.velocity.x
-        || velocity.y != other.velocity.y || velocity.z != other.velocity.z;
+  // disuguaglianza
+  bool operator!=(const boid& other) const
+  {
+    return !(*this == other);
   }
 
+  // assegna
   boid operator=(const boid& other)
   {
     if (this != &other) {

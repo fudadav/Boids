@@ -1,12 +1,15 @@
-#ifndef PREDATOR_H
-#define PREDATOR_H
+#ifndef PREDATOR
+#define PREDATOR
 
 #include "boid.hpp"
+#include "statistics.hpp"
 #include "swarm.hpp"
 #include "vec3.hpp"
+
+#include <cmath>
 #include <cstdlib>
 #include <ctime>
-#include <stdexcept>
+#include <vector>
 
 class predator : public boid
 {
@@ -14,75 +17,66 @@ class predator : public boid
   double attack_speed;
   vec3 screen;
   bool toroidal;
+  double prefered_height;
   vec3 wind;
 
-  void bounce() // rimbalzo
+  void initialize_predator()
   {
-    vec3 bounce = get_velocity();
-    for (int i = 0; i < 3; i++) {
-      if (get_position()[i] < 0 && get_velocity()[i] < 0) {
-        bounce[i] *= -1;
-      } else if (get_position()[i] > screen[i] && get_velocity()[i] > 0) {
-        bounce[i] *= -1;
-      }
-    }
-    set_velocity(bounce);
+    std::srand(static_cast<unsigned>(std::time(0)));
+
+    double x = std::rand() % static_cast<int>(screen.x);
+    double y = std::rand() % static_cast<int>(screen.y);
+    double z = std::rand() % static_cast<int>(screen.z);
+
+    set_position(vec3(x, y, z));
+
+    double vx =
+        ((std::rand() % static_cast<int>(2 * attack_speed / std::sqrt(3)))
+         - (attack_speed / std::sqrt(3)));
+    double vy =
+        ((std::rand() % static_cast<int>(2 * attack_speed / std::sqrt(3)))
+         - (attack_speed / std::sqrt(3)));
+    double vz =
+        ((std::rand() % static_cast<int>(2 * attack_speed / std::sqrt(3)))
+         - (attack_speed / std::sqrt(3)));
+
+    set_velocity(vec3(vx, vy, vz));
+
+    if (get_velocity().norm() > attack_speed) {
+      set_velocity(get_velocity().normalize() * attack_speed);
+    };
   }
 
-  void teleport() // teletrasporto
-  {
-    vec3 new_position = get_position();
-
-    for (int i = 0; i < 3; ++i) {
-      if (new_position[i] > screen[i]) {
-        new_position[i] = new_position[i] - screen[i];
-      } else if (new_position[i] < 0) {
-        new_position[i] = screen[i] - new_position[i];
-      }
-    }
-
-    set_position(new_position);
-  }
-
-  void rule4() // rimbalzo
-  {
-    if (toroidal) {
-      teleport();
-    } else {
-      bounce();
-    }
-  }
-
-  boid* find_prey(swarm& swarm)
+  boid* find_prey(swarm& boids)
   {
     boid* nearest_prey      = nullptr;
     double nearest_distance = screen.norm();
 
     if (!toroidal) {
-      for (int i = 0; i < swarm.get_size(); i++) {
+      for (int i = 0; i < boids.get_size(); i++) {
         double dist =
-            distance(swarm.get_boids()[i].get_position(), get_position());
+            distance(boids.get_boids()[i].get_position(), get_position());
         if (dist < nearest_distance && dist <= get_attack_range()) {
           nearest_distance = dist;
-          nearest_prey     = &swarm.get_boids()[i];
+          nearest_prey     = &boids.get_boids()[i];
         }
       }
     } else {
-      for (int i = 0; i < swarm.get_size(); i++) {
-        double dist = toroidal_distance(swarm.get_boids()[i].get_position(),
+      for (int i = 0; i < boids.get_size(); i++) {
+        double dist = toroidal_distance(boids.get_boids()[i].get_position(),
                                         get_position(), screen);
         if (dist < nearest_distance && dist <= get_attack_range()) {
           nearest_distance = dist;
-          nearest_prey     = &swarm.get_boids()[i];
+          nearest_prey     = &boids.get_boids()[i];
         }
       }
     }
     return nearest_prey;
   }
 
-  void attack(swarm& swarm)
+  void attack(swarm& boids)
   {
-    boid* prey = find_prey(swarm);
+    boid* prey = find_prey(boids);
     if (prey != nullptr) {
       if (!toroidal) {
         vec3 direction_to_prey =
@@ -104,6 +98,7 @@ class predator : public boid
       , attack_speed(0)
       , screen(vec3(500, 500, 500))
       , toroidal(0)
+      , prefered_height(screen.z / 3)
       , wind(vec3(0, 0, 0))
   {}
 
@@ -116,6 +111,7 @@ class predator : public boid
       , attack_speed(attack_speed_)
       , screen(screen_)
       , toroidal(toroidal_)
+      , prefered_height(screen.z / 3)
       , wind(wind_)
   {
     if (attack_range <= 0) {
@@ -127,13 +123,19 @@ class predator : public boid
     initialize_predator();
   }
 
-  void update_predator(swarm& swarm)
+  void update_predator(swarm& boids)
   {
-    // Aggiorna la posizione e il comportamento del predatore
-    attack(swarm);
-    update_boid(vec3(), get_attack_speed());
-    update_boid(wind, wind.norm() + attack_speed);
-    rule4();
+    if (boids.get_cooldown() >= 1000) {
+      attack(boids);
+    } else {
+      update_boid_velocity(keep_height(*this, prefered_height, 100),
+                           attack_speed * 0.6);
+    }
+    update_boid_velocity(vec3(), attack_speed);
+    update_boid(wind,
+                wind.norm() + attack_speed); // il vento ha la precedenza sulle
+                                             // intenzioni del predator
+    boids.border(*this);
   }
 
   double get_attack_range()
@@ -149,27 +151,7 @@ class predator : public boid
     return screen;
   }
 
-  void initialize_predator()
-  {
-    std::srand(static_cast<unsigned>(std::time(0)));
-
-    double x = std::rand() % static_cast<int>(screen.x);
-    double y = std::rand() % static_cast<int>(screen.y);
-    double z = std::rand() % static_cast<int>(screen.z);
-
-    set_position(vec3(x, y, z));
-
-    double vx = ((std::rand() % 100) - 50);
-    double vy = ((std::rand() % 100) - 50);
-    double vz = ((std::rand() % 100) - 50);
-
-    if (vx == 0 && vy == 0 && vz == 0) {
-      vx = 10;
-    }
-    set_velocity(vec3(vx, vy, vz));
-  }
-
-  // User-defined copy constructor
+  // copy constructor
   predator(const predator& other)
       : boid(other)
       , attack_range(other.attack_range)
@@ -190,4 +172,4 @@ class predator : public boid
   }
 };
 
-#endif // PREDATOR_H
+#endif
