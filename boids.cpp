@@ -47,11 +47,9 @@ int main()
               yautja, screen, toroidalbool, wind);
 
   int t = 0;
-  while (windowXY.isOpen() && windowXZ.isOpen() && windowYZ.isOpen()
-         && boids.get_size() > 1) {
+  while (windowXY.isOpen() && windowXZ.isOpen() && boids.get_size() > 1) {
     handle_events(windowXY);
     handle_events(windowXZ);
-    handle_events(windowYZ);
 
     windowXY.clear();
     draw_boids_on_plane(boids, yautja, windowXY, 0);
@@ -60,10 +58,6 @@ int main()
     windowXZ.clear();
     draw_boids_on_plane(boids, yautja, windowXZ, 1);
     windowXZ.display();
-
-    windowYZ.clear();
-    draw_boids_on_plane(boids, yautja, windowYZ, 2);
-    windowYZ.display();
 
     update_simulation(yautja, boids, t);
   }
