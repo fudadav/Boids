@@ -88,7 +88,6 @@ void initialize_parameters(bool& manually, int& size, double& wingspan,
 // finestre usate nella funzione draw e nel main
 sf::RenderWindow windowXY;
 sf::RenderWindow windowXZ;
-sf::RenderWindow windowYZ;
 
 // disegna le finestre
 void draw_windows()
@@ -110,21 +109,22 @@ void draw_windows()
   // Create the windows with the calculated sizes
   windowXY.create(sf::VideoMode(windowWidth, windowHeight), "XY Plane");
   windowXZ.create(sf::VideoMode(windowWidth, windowHeight), "XZ Plane");
-  windowYZ.create(sf::VideoMode(windowHeight, windowHeight), "YZ Plane");
 
   // Set the position of the windows, with offset to account for padding and app
   // bar
   windowXY.setPosition(
       sf::Vector2i(0, windowHeight + 3 * padding)); // Bottom-left corner
   windowXZ.setPosition(sf::Vector2i(0, 0));         // Upper-left corner
-  windowYZ.setPosition(
-      sf::Vector2i(windowWidth + padding, 0)); // Upper-right corner
 }
 
 // disegna i boids nella finestra
 void draw_boids_on_plane(swarm& boids, predator& yautja,
                          sf::RenderWindow& window, int plane)
 {
+  if (plane > 1) {
+    throw std::out_of_range("index out of range");
+  }
+
   sf::CircleShape boidShape(
       boids.get_wingspan()); // Cerchio con raggio uguale al wingspan
   boidShape.setFillColor(sf::Color::White);
@@ -133,8 +133,8 @@ void draw_boids_on_plane(swarm& boids, predator& yautja,
       boids.get_wingspan() * 2); // Cerchio di dimensione doppia per il predator
   predatorShape.setFillColor(sf::Color::Red);
 
-  vec3 screen = boids.get_screen();
-  double width = windowXY.getSize().x;
+  vec3 screen   = boids.get_screen();
+  double width  = windowXY.getSize().x;
   double height = windowXY.getSize().y;
 
   // Disegno dei boids
@@ -148,10 +148,6 @@ void draw_boids_on_plane(swarm& boids, predator& yautja,
       break;
     case 1:
       position.x = boids[i].get_position().x / screen.x * width;
-      position.y = boids[i].get_position().z / screen.z * height;
-      break;
-    case 2:
-      position.x = boids[i].get_position().y / screen.y * height;
       position.y = boids[i].get_position().z / screen.z * height;
       break;
     }
@@ -169,10 +165,6 @@ void draw_boids_on_plane(swarm& boids, predator& yautja,
     break;
   case 1:
     predatorPosition.x = yautja.get_position().x / screen.x * width;
-    predatorPosition.y = yautja.get_position().z / screen.z * height;
-    break;
-  case 2:
-    predatorPosition.x = yautja.get_position().y / screen.y * height;
     predatorPosition.y = yautja.get_position().z / screen.z * height;
     break;
   }
